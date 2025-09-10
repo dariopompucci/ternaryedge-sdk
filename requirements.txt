@@ -2,9 +2,17 @@
 torch>=2.2
 torchvision>=0.17
 torchaudio>=2.2
-
-# Utils
 numpy>=1.23
+
+# Training UX
 tqdm>=4.66
 pyyaml>=6.0
 rich>=13.7
+
+# Export
+onnx>=1.15
+onnxruntime>=1.18
+onnxsim>=0.4.36
+
+# Tests
+pytest>=7.4
