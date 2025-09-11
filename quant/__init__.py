@@ -1,3 +1,4 @@
+cat > quant/__init__.py <<'PY'
 from .ternarize import (
     TernaryConfig as TernaryConfig,
     TernaryQuantizer as TernaryQuantizer,
@@ -17,3 +18,4 @@ __all__ = [
     "enable_quant",
     "disable_quant",
 ]
+PY
