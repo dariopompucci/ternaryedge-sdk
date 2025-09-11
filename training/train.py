@@ -57,23 +57,34 @@ class SmallTernaryCNN(nn.Module):
     """
     Small CNN for MNIST; uses ternary conv/linear when quant=True.
     """
+
     def __init__(self, quant: bool = True, t: float = 0.7, per_channel: bool = True):
         super().__init__()
 
-        Conv = (lambda *args, **kw: TernaryConv2d(*args, t=t, per_channel=per_channel, **kw)) if quant else nn.Conv2d
-        Linear = (lambda *args, **kw: TernaryLinear(*args, t=t, per_channel=False, **kw)) if quant else nn.Linear
+        Conv = (
+            (
+                lambda *args, **kw: TernaryConv2d(
+                    *args, t=t, per_channel=per_channel, **kw
+                )
+            )
+            if quant
+            else nn.Conv2d
+        )
+        Linear = (
+            (lambda *args, **kw: TernaryLinear(*args, t=t, per_channel=False, **kw))
+            if quant
+            else nn.Linear
+        )
 
         self.net = nn.Sequential(
             Conv(1, 16, kernel_size=3, padding=1),  # 28x28 -> 28x28
             nn.BatchNorm2d(16),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),                        # 28x28 -> 14x14
-
-            Conv(16, 32, kernel_size=3, padding=1), # 14x14 -> 14x14
+            nn.MaxPool2d(2),  # 28x28 -> 14x14
+            Conv(16, 32, kernel_size=3, padding=1),  # 14x14 -> 14x14
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),                        # 14x14 -> 7x7
-
+            nn.MaxPool2d(2),  # 14x14 -> 7x7
             nn.Flatten(),
             Linear(32 * 7 * 7, 128, bias=True),
             nn.ReLU(inplace=True),
@@ -87,6 +98,7 @@ class SmallTernaryCNN(nn.Module):
 def set_seed(seed: int):
     import random
     import numpy as np
+
     random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -95,19 +107,32 @@ def set_seed(seed: int):
 
 def get_dataloaders(cfg: TrainConfig) -> Tuple[DataLoader, DataLoader]:
     if cfg.dataset.lower() == "mnist":
-        tfm = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,))
-        ])
-        train_ds = datasets.MNIST(cfg.data_root, train=True, download=True, transform=tfm)
-        test_ds = datasets.MNIST(cfg.data_root, train=False, download=True, transform=tfm)
+        tfm = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        )
+        train_ds = datasets.MNIST(
+            cfg.data_root, train=True, download=True, transform=tfm
+        )
+        test_ds = datasets.MNIST(
+            cfg.data_root, train=False, download=True, transform=tfm
+        )
     else:
         raise ValueError(f"Unsupported dataset: {cfg.dataset}")
 
-    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True,
-                              num_workers=cfg.num_workers, pin_memory=True)
-    test_loader = DataLoader(test_ds, batch_size=cfg.batch_size, shuffle=False,
-                             num_workers=cfg.num_workers, pin_memory=True)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        pin_memory=True,
+    )
+    test_loader = DataLoader(
+        test_ds,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        pin_memory=True,
+    )
     return train_loader, test_loader
 
 
@@ -117,7 +142,9 @@ def train_one_epoch(model, loader, optimizer, device):
     running_loss, correct, total = 0.0, 0, 0
 
     for images, targets in tqdm(loader, desc="Train", leave=False):
-        images, targets = images.to(device, non_blocking=True), targets.to(device, non_blocking=True)
+        images, targets = images.to(device, non_blocking=True), targets.to(
+            device, non_blocking=True
+        )
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
         loss = loss_fn(logits, targets)
@@ -139,7 +166,9 @@ def evaluate(model, loader, device):
     running_loss, correct, total = 0.0, 0, 0
 
     for images, targets in tqdm(loader, desc="Eval", leave=False):
-        images, targets = images.to(device, non_blocking=True), targets.to(device, non_blocking=True)
+        images, targets = images.to(device, non_blocking=True), targets.to(
+            device, non_blocking=True
+        )
         logits = model(images)
         loss = loss_fn(logits, targets)
         running_loss += loss.item() * images.size(0)
@@ -151,7 +180,9 @@ def evaluate(model, loader, device):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="TernaryEdge SDK — training scaffold (TWN)")
+    parser = argparse.ArgumentParser(
+        description="TernaryEdge SDK — training scaffold (TWN)"
+    )
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -159,9 +190,17 @@ def main():
     parser.add_argument("--dataset", type=str, default="mnist")
     parser.add_argument("--data-root", type=str, default="./data")
     parser.add_argument("--num-workers", type=int, default=2)
-    parser.add_argument("--t", type=float, default=0.7, help="Threshold factor for Δ = t * mean(|W|)")
-    parser.add_argument("--per-channel", action="store_true", help="Per-out-channel α/Δ (Conv layers)")
-    parser.add_argument("--no-quant", action="store_true", help="Disable ternary quantization (use FP weights)")
+    parser.add_argument(
+        "--t", type=float, default=0.7, help="Threshold factor for Δ = t * mean(|W|)"
+    )
+    parser.add_argument(
+        "--per-channel", action="store_true", help="Per-out-channel α/Δ (Conv layers)"
+    )
+    parser.add_argument(
+        "--no-quant",
+        action="store_true",
+        help="Disable ternary quantization (use FP weights)",
+    )
     parser.add_argument("--save-dir", type=str, default="./models")
     parser.add_argument("--model-name", type=str, default="mnist_ternary_cnn.pt")
     parser.add_argument("--seed", type=int, default=1337)
@@ -187,7 +226,9 @@ def main():
     console.rule("[bold]TernaryEdge Training")
     console.print(cfg)
 
-    model = SmallTernaryCNN(quant=cfg.quant, t=cfg.t, per_channel=cfg.per_channel).to(cfg.device)
+    model = SmallTernaryCNN(quant=cfg.quant, t=cfg.t, per_channel=cfg.per_channel).to(
+        cfg.device
+    )
 
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
@@ -196,7 +237,9 @@ def main():
     best_acc = 0.0
     for epoch in range(cfg.epochs):
         console.print(f"[cyan]Epoch {epoch+1}/{cfg.epochs}")
-        train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, cfg.device)
+        train_loss, train_acc = train_one_epoch(
+            model, train_loader, optimizer, cfg.device
+        )
         val_loss, val_acc = evaluate(model, test_loader, cfg.device)
 
         console.print(
@@ -208,7 +251,14 @@ def main():
         if val_acc > best_acc:
             best_acc = val_acc
             ckpt_path = os.path.join(cfg.save_dir, cfg.model_name)
-            torch.save({"model": model.state_dict(), "cfg": cfg.__dict__, "best_acc": best_acc}, ckpt_path)
+            torch.save(
+                {
+                    "model": model.state_dict(),
+                    "cfg": cfg.__dict__,
+                    "best_acc": best_acc,
+                },
+                ckpt_path,
+            )
             console.print(f"[bold green]Saved[/] checkpoint → {ckpt_path}")
 
     # Example: run with FP weights for eval sanity check if quant was enabled

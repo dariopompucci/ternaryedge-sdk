@@ -13,7 +13,6 @@ These are reference CPU utils; optimized kernels can come later (SIMD).
 """
 
 from __future__ import annotations
-import math
 import torch
 
 
@@ -29,7 +28,7 @@ def encode_trits(x: torch.Tensor) -> torch.Tensor:
     vals = torch.empty_like(x, dtype=torch.uint8)
     vals[x == 0] = 0  # 00
     vals[x == 1] = 1  # 01
-    vals[x == -1] = 2 # 10
+    vals[x == -1] = 2  # 10
     return vals
 
 

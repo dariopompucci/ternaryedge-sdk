@@ -22,15 +22,14 @@ import torch.nn.functional as F
 
 @dataclass
 class TernaryConfig:
-    t: float = 0.7                 # threshold factor for Δ = t * mean(|W|)
-    per_channel: bool = False      # set True for channel-wise α/Δ (Conv: out_channels)
-    channel_dim: int = 0           # dimension along which channels are defined
-    enable: bool = True            # master switch (disable -> pass-through weights)
+    t: float = 0.7  # threshold factor for Δ = t * mean(|W|)
+    per_channel: bool = False  # set True for channel-wise α/Δ (Conv: out_channels)
+    channel_dim: int = 0  # dimension along which channels are defined
+    enable: bool = True  # master switch (disable -> pass-through weights)
 
 
 def _compute_delta_alpha(
-    w: torch.Tensor,
-    cfg: TernaryConfig
+    w: torch.Tensor, cfg: TernaryConfig
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Compute (Δ, α, mask) for ternarization.
@@ -62,8 +61,7 @@ def _compute_delta_alpha(
 
 
 def ternarize_weight(
-    w: torch.Tensor,
-    cfg: TernaryConfig
+    w: torch.Tensor, cfg: TernaryConfig
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Forward ternarization mapping:
@@ -72,7 +70,11 @@ def ternarize_weight(
     """
     if not cfg.enable:
         # Pass-through (no quantization)
-        return w, torch.tensor(1.0, device=w.device, dtype=w.dtype), torch.tensor(0.0, device=w.device, dtype=w.dtype)
+        return (
+            w,
+            torch.tensor(1.0, device=w.device, dtype=w.dtype),
+            torch.tensor(0.0, device=w.device, dtype=w.dtype),
+        )
 
     with torch.no_grad():
         delta, alpha, mask = _compute_delta_alpha(w, cfg)
@@ -91,9 +93,18 @@ class TernaryQuantizer(nn.Module):
     Module wrapper to ternarize a weight tensor on-the-fly during forward.
     Use inside custom layers or to wrap existing parameters.
     """
-    def __init__(self, t: float = 0.7, per_channel: bool = False, channel_dim: int = 0, enable: bool = True):
+
+    def __init__(
+        self,
+        t: float = 0.7,
+        per_channel: bool = False,
+        channel_dim: int = 0,
+        enable: bool = True,
+    ):
         super().__init__()
-        self.cfg = TernaryConfig(t=t, per_channel=per_channel, channel_dim=channel_dim, enable=enable)
+        self.cfg = TernaryConfig(
+            t=t, per_channel=per_channel, channel_dim=channel_dim, enable=enable
+        )
 
     def forward(self, w: torch.Tensor) -> torch.Tensor:
         w_q, _, _ = ternarize_weight(w, self.cfg)
@@ -108,11 +119,20 @@ class TernaryLinear(nn.Linear):
     Drop-in Linear layer with ternary weights (TWN-style).
     Bias remains full precision by default.
     """
-    def __init__(self, in_features: int, out_features: int, bias: bool = True,
-                 t: float = 0.7, per_channel: bool = False):
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        t: float = 0.7,
+        per_channel: bool = False,
+    ):
         super().__init__(in_features, out_features, bias=bias)
         # For Linear, per_channel=True means per-output-feature scaling (channel_dim=0 for [out, in])
-        self.quant = TernaryQuantizer(t=t, per_channel=per_channel, channel_dim=0, enable=True)
+        self.quant = TernaryQuantizer(
+            t=t, per_channel=per_channel, channel_dim=0, enable=True
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         w_q, _, _ = ternarize_weight(self.weight, self.quant.cfg)
@@ -124,16 +144,40 @@ class TernaryConv2d(nn.Conv2d):
     Drop-in Conv2d layer with ternary weights (TWN-style).
     Bias remains full precision by default.
     """
-    def __init__(self, in_channels: int, out_channels: int, kernel_size,
-                 stride=1, padding=0, dilation=1, groups=1, bias=True,
-                 t: float = 0.7, per_channel: bool = True):
-        super().__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        t: float = 0.7,
+        per_channel: bool = True,
+    ):
+        super().__init__(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+        )
         # For Conv2d, per_channel=True means per-out-channel scaling (channel_dim=0 for [out, in, kH, kW])
-        self.quant = TernaryQuantizer(t=t, per_channel=per_channel, channel_dim=0, enable=True)
+        self.quant = TernaryQuantizer(
+            t=t, per_channel=per_channel, channel_dim=0, enable=True
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         w_q, _, _ = ternarize_weight(self.weight, self.quant.cfg)
-        return F.conv2d(x, w_q, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        return F.conv2d(
+            x, w_q, self.bias, self.stride, self.padding, self.dilation, self.groups
+        )
 
 
 def disable_quant(model: nn.Module) -> None:
@@ -142,9 +186,9 @@ def disable_quant(model: nn.Module) -> None:
     """
     for m in model.modules():
         if isinstance(m, (TernaryQuantizer, TernaryLinear, TernaryConv2d)):
-            if hasattr(m, "quant"):          # TernaryLinear/Conv2d
+            if hasattr(m, "quant"):  # TernaryLinear/Conv2d
                 m.quant.set_enable(False)
-            elif hasattr(m, "cfg"):          # TernaryQuantizer
+            elif hasattr(m, "cfg"):  # TernaryQuantizer
                 m.set_enable(False)
 
 

@@ -2,6 +2,7 @@
 import torch
 from backends.packing import pack_trits, unpack_trits
 
+
 def test_pack_unpack_roundtrip():
     x = torch.tensor([1, 0, -1, 1, -1, 0, 0, 1, -1, 1, 0, 0], dtype=torch.int8)
     packed = pack_trits(x)

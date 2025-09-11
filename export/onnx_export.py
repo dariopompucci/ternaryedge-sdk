@@ -18,8 +18,10 @@ import torch
 import torch.nn as nn
 
 from quant.ternarize import (
-    TernaryConv2d, TernaryLinear,
-    ternarize_weight, TernaryConfig
+    TernaryConv2d,
+    TernaryLinear,
+    ternarize_weight,
+    TernaryConfig,
 )
 
 # We reuse the SmallTernaryCNN defined in training.train to rebuild the model
@@ -40,9 +42,14 @@ def _convert_module(m: nn.Module) -> nn.Module:
         with torch.no_grad():
             w_q, _, _ = ternarize_weight(m.weight, cfg)
         conv = nn.Conv2d(
-            in_channels=m.in_channels, out_channels=m.out_channels,
-            kernel_size=m.kernel_size, stride=m.stride, padding=m.padding,
-            dilation=m.dilation, groups=m.groups, bias=(m.bias is not None)
+            in_channels=m.in_channels,
+            out_channels=m.out_channels,
+            kernel_size=m.kernel_size,
+            stride=m.stride,
+            padding=m.padding,
+            dilation=m.dilation,
+            groups=m.groups,
+            bias=(m.bias is not None),
         )
         conv.weight.data.copy_(w_q)
         if m.bias is not None:
@@ -103,7 +110,9 @@ def export_mnist_checkpoint_to_onnx(ckpt_path: str, onnx_path: str) -> None:
     dynamic_axes = {"input": {0: "N"}, "logits": {0: "N"}}
 
     torch.onnx.export(
-        model, dummy, onnx_path,
+        model,
+        dummy,
+        onnx_path,
         export_params=True,
         opset_version=17,
         do_constant_folding=True,
@@ -116,7 +125,9 @@ def export_mnist_checkpoint_to_onnx(ckpt_path: str, onnx_path: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Export ternary MNIST model to ONNX")
-    parser.add_argument("--ckpt", type=str, required=True, help="Path to training checkpoint (*.pt)")
+    parser.add_argument(
+        "--ckpt", type=str, required=True, help="Path to training checkpoint (*.pt)"
+    )
     parser.add_argument("--onnx", type=str, required=True, help="Output ONNX path")
     args = parser.parse_args()
 
